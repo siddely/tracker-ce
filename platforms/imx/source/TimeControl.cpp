@@ -135,6 +135,12 @@ void delayMicroseconds(uint32_t valueUs)
 
 extern "C"
 {
+    // C-linkage millisecond clock, used by the TinyUSB host stack (tusb_time_millis_api)
+    uint32_t platformMillis(void)
+    {
+        return timeControl.millis();
+    }
+
     void SysTick_Handler()
     {
         msTicks++;

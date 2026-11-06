@@ -11,6 +11,7 @@
 #include "Platform.h"
 #include "TrackerImpl.h"
 #include "core/interface.h"
+#include "mtMidiMonitor.h"
 #include "util_math.h"
 #include <cmath>
 
@@ -38,24 +39,76 @@ void midiInit(UartMidi* uartMidi, UsbMidi* usbMidi)
     ::usbMidi = usbMidi;
     // jack
 
+    // Each action also reports to the MIDI monitor (Config > MIDI > MIDI monitor)
+    constexpr auto kJack = MidiMonitorSource::kJack;
+    constexpr auto kUsb = MidiMonitorSource::kUsb;
+
     UartMidi::MidiReceiveActions uartMidiReceiveActions;
-    uartMidiReceiveActions.noteOn = handleJackNoteOn;
-    uartMidiReceiveActions.noteOff = handleJackNoteOff;
+    uartMidiReceiveActions.noteOn = [](uint8_t ch, uint8_t note, uint8_t vel)
+    {
+        midiMonitorLog(kJack, vel ? 0x90 : 0x80, ch, note, vel);
+        handleJackNoteOn(ch, note, vel);
+    };
+    uartMidiReceiveActions.noteOff = [](uint8_t ch, uint8_t note, uint8_t vel)
+    {
+        midiMonitorLog(kJack, 0x80, ch, note, vel);
+        handleJackNoteOff(ch, note, vel);
+    };
     uartMidiReceiveActions.clock = receiveJackClock;
-    uartMidiReceiveActions.start = receiveJackStart;
-    uartMidiReceiveActions.stop = receiveJackStop;
-    uartMidiReceiveActions.songPosition = handleJackSongPosition;
-    uartMidiReceiveActions.continueMessage = receiveJackContinue;
-    uartMidiReceiveActions.controlChange = handleJackControlChange;
+    uartMidiReceiveActions.start = []()
+    {
+        midiMonitorLog(kJack, 0xFA, 0, 0, 0);
+        receiveJackStart();
+    };
+    uartMidiReceiveActions.stop = []()
+    {
+        midiMonitorLog(kJack, 0xFC, 0, 0, 0);
+        receiveJackStop();
+    };
+    uartMidiReceiveActions.songPosition = [](unsigned pos)
+    {
+        midiMonitorLog(kJack, 0xF2, 0, pos & 0x7F, (pos >> 7) & 0x7F);
+        handleJackSongPosition(pos);
+    };
+    uartMidiReceiveActions.continueMessage = []()
+    {
+        midiMonitorLog(kJack, 0xFB, 0, 0, 0);
+        receiveJackContinue();
+    };
+    uartMidiReceiveActions.controlChange = [](uint8_t ch, uint8_t cc, uint8_t val)
+    {
+        midiMonitorLog(kJack, 0xB0, ch, cc, val);
+        handleJackControlChange(ch, cc, val);
+    };
     uartMidi->setReceiveActions(&uartMidiReceiveActions);
 
     // usb
     UsbMidi::MidiReceiveActions usbMidiReceiveActions;
-    usbMidiReceiveActions.realTime = receiveUsbRealtime;
-    usbMidiReceiveActions.noteOn = handleUsbNoteOn;
-    usbMidiReceiveActions.noteOff = handleUsbNoteOff;
-    usbMidiReceiveActions.songPosition = handleUsbSongPosition;
-    usbMidiReceiveActions.controlChange = handleUSBControlChange;
+    usbMidiReceiveActions.realTime = [](uint8_t type)
+    {
+        midiMonitorLog(kUsb, type, 0, 0, 0);
+        receiveUsbRealtime(type);
+    };
+    usbMidiReceiveActions.noteOn = [](uint8_t ch, uint8_t note, uint8_t vel)
+    {
+        midiMonitorLog(kUsb, vel ? 0x90 : 0x80, ch, note, vel);
+        handleUsbNoteOn(ch, note, vel);
+    };
+    usbMidiReceiveActions.noteOff = [](uint8_t ch, uint8_t note, uint8_t vel)
+    {
+        midiMonitorLog(kUsb, 0x80, ch, note, vel);
+        handleUsbNoteOff(ch, note, vel);
+    };
+    usbMidiReceiveActions.songPosition = [](uint16_t pos)
+    {
+        midiMonitorLog(kUsb, 0xF2, 0, pos & 0x7F, (pos >> 7) & 0x7F);
+        handleUsbSongPosition(pos);
+    };
+    usbMidiReceiveActions.controlChange = [](uint8_t ch, uint8_t cc, uint8_t val)
+    {
+        midiMonitorLog(kUsb, 0xB0, ch, cc, val);
+        handleUSBControlChange(ch, cc, val);
+    };
 
     usbMidi->setReceiveActions(&usbMidiReceiveActions);
 }

@@ -336,6 +336,9 @@ void checkConfig()
     mtConfig.midi.slaveClockComp =
       clamp(mtConfig.midi.slaveClockComp, (uint8_t)0, (uint8_t)kExternalClockCompMaxVal);
 
+    if (mtConfig.midi.monitor > 1)
+        mtConfig.midi.monitor = 0;
+
     // VALUES CHECK  --------------------
     if (mtConfig.values.padsLightBack > 31)
         mtConfig.values.padsLightBack = PADS_LIGHT_BACK_DEFAULT;
@@ -474,6 +477,9 @@ void checkConfig()
     if (mtConfig.common.usbAudioMode >= 4)
         mtConfig.common.usbAudioMode = 0;
 
+    if (mtConfig.common.usbHostMode > 1)
+        mtConfig.common.usbHostMode = 0;
+
     // TODO dodac zapis spowrotem do configu jesli np przy sprawdzaniu wazne dane sie nie zgadzały
     // TODO
     // TODO
@@ -521,6 +527,7 @@ void resetConfig()
     mtConfig.midi.ccInChannel = 0;
     mtConfig.midi.middleC = 2;
     mtConfig.midi.slaveClockComp = kExternalClockCompDefaultVal;
+    mtConfig.midi.monitor = 0;
 
     // values ----------------------------------------
     mtConfig.values.padsLightBack = PADS_LIGHT_BACK_DEFAULT;
@@ -584,6 +591,7 @@ void resetConfig()
     // common ----------------------------------------
     mtConfig.common.equalSliceNumber = 8;
     mtConfig.common.usbAudioMode = 0;
+    mtConfig.common.usbHostMode = 0;
 }
 
 uint16_t sizes[10];

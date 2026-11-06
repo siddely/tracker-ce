@@ -42,5 +42,14 @@ void setFunctionKey8();
 void resetConfigShowPopup();
 void usbStorageEnter();
 void usbAudioChange();
+void usbHostChange();
+
+constexpr uint8_t kUsbHostDeviceLabels = 2;
+extern const char* usbHostDeviceLabel[kUsbHostDeviceLabels];
+extern const char* usbHostStatusLabel;
+extern const char* usbHostPortLabel;
+void usbHostDevicesUpdate();
+void openUsbLogAction();
+void usbLogViewUpdate(); // keeps the USB log screen live while it is open
 
 #endif /* INTERFACE_CONFIGEDITOR_CONFIGMENUACTIONS_H_ */

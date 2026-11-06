@@ -26,6 +26,7 @@
 #include "board.h"
 #include "clock_config.h"
 #include "composite.h"
+#include "usb_host_mode.h"
 #include "fsl_debug_console.h"
 #include "fsl_device_registers.h"
 #include "pin_mux.h"
@@ -129,6 +130,13 @@ usb_composite_state_t g_UsbState = { .isMidiEnabled = true,
 
 void USB_OTG1_IRQHandler(void)
 {
+    if (USB_HostModeIsActive())
+    {
+        USB_HostStackIrqHandler();
+        __DSB();
+        return;
+    }
+
     USB_DeviceEhciIsrFunction(g_composite.deviceHandle);
     /* Add for ARM errata 838869, affects Cortex-M4, Cortex-M4F Store immediate overlapping
     exception return operation might vector to incorrect interrupt */
@@ -458,6 +466,14 @@ void USB_Init()
  */
 void USB_Task()
 {
+    USB_HostModeService();
+
+    if (USB_HostModeIsActive())
+    {
+        USB_HostStackTask();
+        return;
+    }
+
 #if USB_DEVICE_CONFIG_USE_TASK
     USB_DeviceTaskFunction(g_composite.deviceHandle);
 #endif

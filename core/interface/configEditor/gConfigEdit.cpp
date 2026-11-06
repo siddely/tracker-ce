@@ -657,6 +657,62 @@ void cConfigEditor::hideCreditsControls()
     display.refreshControl(label[7]);
 }
 
+//==============================================================================
+// USB log
+void cConfigEditor::showUsbLogControls()
+{
+    static const char* const kLabels[8] = { "Older", "Newer", "Live", "", "Clear", "Save", "", "Close" };
+
+    titleBar->show();
+    titleBar->setTitle("USB log");
+
+    display.setControlHide(blankSpaceCover[0]);
+    display.setControlHide(blankSpaceCover[1]);
+
+    for (uint8_t i = 0; i < 8; i++)
+    {
+        if (kLabels[i][0] != 0)
+        {
+            display.setControlShow(label[i]);
+            display.setControlText(label[i], kLabels[i]);
+        }
+        else
+        {
+            display.setControlHide(label[i]);
+        }
+        display.refreshControl(label[i]);
+    }
+
+    display.setControlHide(frameControl);
+    display.setControlHide(bgLabel);
+
+    display.setControlShow(creditsTextBox);
+    display.synchronizeRefresh();
+}
+
+void cConfigEditor::refreshUsbLogText(const char* text, const char* title)
+{
+    titleBar->setTitle(title);
+    display.setControlText(creditsTextBox, text);
+    display.refreshControl(creditsTextBox);
+    display.synchronizeRefresh();
+}
+
+void cConfigEditor::hideUsbLogControls()
+{
+    display.setControlHide(creditsTextBox);
+
+    display.setControlShow(bgLabel);
+    display.setControlValue(bgLabel, 255);
+    display.refreshControl(bgLabel);
+
+    for (uint8_t i = 0; i < 8; i++)
+    {
+        display.setControlText(label[i], "");
+        display.refreshControl(label[i]);
+    }
+}
+
 #ifdef GRID_EDITOR_ENABLED
 void cConfigEditor::showGridScreen()
 {

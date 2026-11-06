@@ -44,7 +44,12 @@ Polyend Tracker Community Edition (CE) incorporates or links against the followi
 * **License**: MIT / GPLv3 dual-licensed (used under MIT/BSD terms where applicable)
 * **Copyright**: Copyright (c) 2014-2016 Frank Boesing.
 
-## 9. Polyend Precompiled Synth & DSP Libraries (`libPolySynth.a`, `libPolyDSP.a`)
+## 9. TinyUSB (host stack subset, v0.21.0)
+* **Location**: `platforms/imx/3rdparty/tinyusb/`
+* **License**: MIT License
+* **Copyright**: Copyright (c) 2018-2025 Ha Thach (tinyusb.org) and TinyUSB contributors.
+
+## 10. Polyend Precompiled Synth & DSP Libraries (`libPolySynth.a`, `libPolyDSP.a`)
 * **Location**: `synth/lib/`
 * **License**: Polyend Precompiled Synthesizer & DSP Library License (`synth/lib/LICENSE-PROPRIETARY.txt`)
 * **Copyright**: Copyright (c) 2023-2026 Polyend Sp. z o.o. All rights reserved.

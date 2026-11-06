@@ -233,6 +233,11 @@ const char* const slaveClockComp[kExternalClockCompMaxVal + 1] = {
     "-6", "-5", "-4", "-3", "-2", "-1", "0", "1", "2", "3", "4", "5", "6",
 };
 
+const char* const kUsbHostList[2] = {
+    "Device (computer)",
+    "Host (MIDI devices)",
+};
+
 const char* const kUsbAudioList[4] = {
     "Off",
     "Input",
@@ -345,6 +350,22 @@ const char usbAudioDesc[] = {
     "Enables audio over USB. For best results connect the device directly to your computer USB "
     "port (USB hubs are not supported) before launching your DAW and set it up as an aggregate "
     "audio device. Find more details in our user manual at polyend.com"
+};
+
+const char midiMonitorDesc[] = {
+    "Shows incoming MIDI on screen (notes, CC, transport) with where it came from, plus USB port "
+    "mode changes. MIDI clock is not shown. USB device connections always show."
+};
+
+const char usbLogDesc[] = {
+    "Verbose log of everything the USB port does: mode changes, connections, each step of "
+    "talking to a device, errors and MIDI traffic. Save it to the card as USB_log.txt."
+};
+
+const char usbHostDesc[] = {
+    "Host: plug USB MIDI keyboards, pads or synths into the Tracker (up to two via a hub). "
+    "They need external power, e.g. a powered OTG Y-cable or hub. USB audio, MIDI and "
+    "storage to a computer are off while in Host."
 };
 
 const char padsPrevDesc[] = { "On the Pattern editor screen, the grid pads can highlight the note "

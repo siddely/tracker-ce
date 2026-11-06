@@ -6,6 +6,7 @@
 #include "ThemeManager.h"
 #include "configMenu.h"
 #include "core/interfaceMenuPopup.h"
+#include "core/interface.h"
 #include "core/interfacePopups.h"
 #include "core/songTimer.h"
 #include "fileManager.h"
@@ -998,6 +999,199 @@ static void functCloseCreditsButton()
 void openCreditsAction()
 {
     CE->openCredits();
+}
+
+//==============================================================================================================
+// USB log viewer (Config > USB > Log)
+
+namespace
+{
+constexpr uint8_t kUsbLogRows = 27;     // lines that fit in the full-screen text box
+constexpr uint8_t kUsbLogLineLen = 64;  // matches USB_LOG_LINE_LEN on the platform side
+const char kUsbLogFile[] = "/USB_log.txt";
+
+bool usbLogOpen = false;
+bool usbLogLive = true;  // follow the newest lines
+uint32_t usbLogTop = 0;  // number of the first line on screen
+uint32_t usbLogDrawnNext = 0xFFFFFFFF;
+elapsedMillis usbLogSinceDraw;
+
+char usbLogText[kUsbLogRows * (kUsbLogLineLen + 1) + 32];
+char usbLogTitle[64];
+
+Usb* usbLogSource()
+{
+    return mtInterface.getPlatform()->getUsb();
+}
+
+void usbLogRender()
+{
+    Usb* usb = usbLogSource();
+    const uint32_t first = usb->getLogFirst();
+    const uint32_t next = usb->getLogNext();
+    const uint32_t lastTop = next > first + kUsbLogRows ? next - kUsbLogRows : first;
+
+    if (usbLogLive || usbLogTop > lastTop)
+        usbLogTop = lastTop;
+    if (usbLogTop < first)
+        usbLogTop = first;
+    if (usbLogTop == lastTop)
+        usbLogLive = true;
+
+    char* out = usbLogText;
+    char* const end = usbLogText + sizeof(usbLogText) - 2;
+    uint8_t rows = 0;
+    for (uint32_t n = usbLogTop; n < next && rows < kUsbLogRows; n++, rows++)
+    {
+        char line[kUsbLogLineLen + 1];
+        if (!usb->getLogLine(n, line, sizeof(line)))
+            continue;
+        size_t len = strlen(line);
+        if (out + len + 1 >= end)
+            break;
+        memcpy(out, line, len);
+        out += len;
+        *out++ = '\n';
+    }
+    if (out == usbLogText)
+    {
+        strcpy(out, "(empty)");
+        out += strlen(out);
+    }
+    *out = 0;
+
+    snprintf(usbLogTitle,
+             sizeof(usbLogTitle),
+             "USB log   %lu-%lu of %lu   %s",
+             (unsigned long)usbLogTop,
+             (unsigned long)(usbLogTop + rows),
+             (unsigned long)next,
+             usbLogLive ? "LIVE" : "paused");
+
+    CE->refreshUsbLogText(usbLogText, usbLogTitle);
+    usbLogDrawnNext = next;
+    usbLogSinceDraw = 0;
+}
+
+void usbLogScroll(int lines)
+{
+    if (lines < 0 && (uint32_t)(-lines) > usbLogTop)
+        usbLogTop = 0;
+    else
+        usbLogTop += lines;
+    usbLogLive = false; // usbLogRender() goes back to live if this reached the end
+    usbLogRender();
+}
+
+// Arrows and +/- repeat (and speed up) while held; the screen buttons do too.
+void functUsbLogOlder() { usbLogScroll(-(kUsbLogRows - 2)); }
+void functUsbLogNewer() { usbLogScroll(kUsbLogRows - 2); }
+void functUsbLogUp() { usbLogScroll(-1); }
+void functUsbLogDown() { usbLogScroll(1); }
+
+void functUsbLogOlderHeld(uint8_t state)
+{
+    if (state == buttonPress || state == buttonHold)
+        functUsbLogOlder();
+}
+
+void functUsbLogNewerHeld(uint8_t state)
+{
+    if (state == buttonPress || state == buttonHold)
+        functUsbLogNewer();
+}
+
+// Encoder (and the Mini's +/- buttons, which act as one): turning up goes back in time
+void functUsbLogEncoder(int16_t value)
+{
+    if (value != 0)
+        usbLogScroll(-value);
+}
+
+void functUsbLogLive()
+{
+    usbLogLive = true;
+    usbLogRender();
+}
+
+void functUsbLogClear()
+{
+    usbLogSource()->clearLog();
+    usbLogLive = true;
+    usbLogRender();
+}
+
+void functUsbLogSave()
+{
+    if (usbLogSource()->saveLog(kUsbLogFile))
+        mtPopups.show(0, "USB log saved", "USB_log.txt on the SD card");
+    else
+        mtPopups.show(0, "USB log not saved", "Is the SD card in?");
+    usbLogRender();
+}
+
+void functUsbLogClose()
+{
+    CE->closeUsbLog();
+}
+} // namespace
+
+void cConfigEditor::openUsbLog()
+{
+    ip->clearButtonsRange(interfaceButton0, interfaceButton7);
+    ip->clearAllPots();
+
+    ip->clearButton(interfaceButtonLeft);
+    ip->clearButton(interfaceButtonRight);
+    ip->clearButton(interfaceButtonUp);
+    ip->clearButton(interfaceButtonDown);
+
+    ip->setButtonObj(interfaceButton0, functUsbLogOlderHeld);
+    ip->setButtonObj(interfaceButton1, functUsbLogNewerHeld);
+    ip->setPotObj(interfacePot0, functUsbLogEncoder);
+    ip->setButtonObj(interfaceButton2, buttonPress, functUsbLogLive);
+    ip->setButtonObj(interfaceButton4, buttonPress, functUsbLogClear);
+    ip->setButtonObj(interfaceButton5, buttonPress, functUsbLogSave);
+    ip->setButtonObj(interfaceButton7, buttonPress, functUsbLogClose);
+    ip->setButtonObj(interfaceButtonMiniMiddle, buttonPress, functUsbLogClose);
+    ip->setButtonObj(interfaceButtonUp, buttonPress, functUsbLogUp);
+    ip->setButtonObj(interfaceButtonDown, buttonPress, functUsbLogDown);
+    ip->setButtonObj(interfaceButtonLeft, buttonPress, functUsbLogOlder);
+    ip->setButtonObj(interfaceButtonRight, buttonPress, functUsbLogNewer);
+
+    ip->setPadsGlobal(functPads);
+
+    songTimer.hide();
+
+    hideConfigMenu();
+    showUsbLogControls();
+
+    usbLogOpen = true;
+    usbLogLive = true;
+    usbLogRender();
+}
+
+void cConfigEditor::closeUsbLog()
+{
+    usbLogOpen = false;
+    songTimer.show();
+
+    hideUsbLogControls();
+    start(0);
+}
+
+void openUsbLogAction()
+{
+    CE->openUsbLog();
+}
+
+void usbLogViewUpdate()
+{
+    if (!usbLogOpen || !usbLogLive || usbLogSinceDraw < 200)
+        return;
+
+    if (usbLogSource()->getLogNext() != usbLogDrawnNext)
+        usbLogRender();
 }
 
 void startFileTransferMode()

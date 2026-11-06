@@ -1074,6 +1074,7 @@ struct strMtConfig
         uint8_t ccInChannel;
         uint8_t middleC;
         uint8_t slaveClockComp;
+        uint8_t monitor; // 0-1, show incoming MIDI on screen
     } midi;
 
     struct strGlobalValues
@@ -1158,6 +1159,8 @@ struct strMtConfig
         uint8_t equalSliceNumber = 8;
 
         uint8_t usbAudioMode = 0;
+
+        uint8_t usbHostMode = 0; // 0 = USB device (to computer), 1 = USB MIDI host
 
     } common;
 

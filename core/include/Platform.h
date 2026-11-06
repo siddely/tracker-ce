@@ -437,6 +437,27 @@ class Usb
     virtual void setClassState(ClassType type, bool enable) = 0;
     virtual bool getClassState(ClassType type) = 0;
     virtual bool isAttached() = 0;
+    // USB host mode (USB MIDI devices plugged into the Tracker). Not every platform has it.
+    virtual bool hasHostMode() { return false; }
+    virtual void setHostMode(bool enable) { (void)enable; }
+    virtual bool isHostMode() { return false; }
+    virtual uint8_t getHostDeviceCount() { return 0; }
+    // Name of the n-th connected host-mode MIDI device, or nullptr
+    virtual const char* getHostDeviceName(uint8_t n) { (void)n; return nullptr; }
+    // Changes whenever the list of connected host-mode devices changes
+    virtual uint16_t getHostDeviceListVersion() { return 0; }
+    // 0 = device mode, 1 = host mode running, 2 = host mode requested but failed to start
+    virtual uint8_t getHostState() { return 0; }
+    // One-line description of the port for the UI, or nullptr
+    virtual const char* getHostStatus() { return nullptr; }
+    // Raw port state, for diagnosing connection problems, or nullptr
+    virtual const char* getHostPortDebug() { return nullptr; }
+    // USB log (Config > USB > Log): numbered lines, oldest first
+    virtual uint32_t getLogFirst() { return 0; }
+    virtual uint32_t getLogNext() { return 0; }
+    virtual bool getLogLine(uint32_t n, char* out, uint32_t size) { (void)n; (void)out; (void)size; return false; }
+    virtual void clearLog() {}
+    virtual bool saveLog(const char* path) { (void)path; return false; }
 };
 
 #endif /* PLATFORM_H_ */

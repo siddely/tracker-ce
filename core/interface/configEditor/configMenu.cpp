@@ -43,10 +43,10 @@ cMenuGroup menuBase(menuBase, 0, baseMenuGroupCount);
 
 cMenuGroup menuProject(menuBase, "Project Settings", projectMenuGroupCount);
 cMenuGroup menuGeneral(menuBase, "General", generalMenuGroupCount);
-cMenuGroup menuMidi(menuBase, "MIDI", 11);
+cMenuGroup menuMidi(menuBase, "MIDI", 12);
 
 #ifdef PLATFORM_IMX
-cMenuGroup menuUsb(menuBase, "USB", 2);
+cMenuGroup menuUsb(menuBase, "USB", 8);
 #endif
 
 cMenuGroup menuMetro(menuBase, "Metronome", 5);
@@ -248,6 +248,9 @@ cMenuItem melSlaveClockComp(menuMidi,
                             menuTypeItemListTextWithAction,
                             &slaveClockCompSetup);
 
+const strItemTypeListText midiMonitorSetup{ &mtConfig.midi.monitor, 2, onOffStateTexts };
+cMenuItem melMidiMonitor(menuMidi, "MIDI monitor", midiMonitorDesc, menuTypeItemListText, &midiMonitorSetup);
+
 //==================================================================================================================================================================
 // Firmware
 const strItemTypeActionButton updateFirmwareSetup{ firmwareUpgradeActivate, nullptr };
@@ -295,6 +298,50 @@ cMenuItem melUsbAudio(menuUsb,
 						  usbAudioDesc,
 						  menuTypeItemListTextWithAction,
                           &usbAudioSetup);
+
+const strItemTypeListTextWithAction usbHostSetup{ &mtConfig.common.usbHostMode,
+                                              sizeof(kUsbHostList)/sizeof(kUsbHostList[0]), kUsbHostList, usbHostChange };
+
+cMenuItem melUsbHost(menuUsb,
+                          "Port mode",
+						  usbHostDesc,
+						  menuTypeItemListTextWithAction,
+                          &usbHostSetup);
+
+// What the port is doing, and the USB MIDI devices connected in Host mode
+const strItemTypeLabelPtr usbHostStatusSetup{ &usbHostStatusLabel };
+const strItemTypeLabelPtr usbHostDevice1Setup{ &usbHostDeviceLabel[0] };
+
+cMenuItem melUsbHostStatus(menuUsb,
+                          "Status",
+						  nullptr,
+						  menuTypeItemLabelPtr,
+                          &usbHostStatusSetup);
+
+// Raw port readout, for diagnosing host mode connection problems
+const strItemTypeLabelPtr usbHostPortSetup{ &usbHostPortLabel };
+cMenuItem melUsbHostPort(menuUsb,
+                          "Port",
+						  nullptr,
+						  menuTypeItemLabelPtr,
+                          &usbHostPortSetup);
+
+const strItemTypeActionButton usbLogSetup{ openUsbLogAction, nullptr };
+cMenuItem melUsbLog(menuUsb, "Log", usbLogDesc, menuTypeItemActionButton, &usbLogSetup);
+
+const strItemTypeLabelPtr usbHostDevice2Setup{ &usbHostDeviceLabel[1] };
+
+cMenuItem melUsbHostDevice1(menuUsb,
+                          "Device 1",
+						  nullptr,
+						  menuTypeItemLabelPtr,
+                          &usbHostDevice1Setup);
+
+cMenuItem melUsbHostDevice2(menuUsb,
+                          "Device 2",
+						  nullptr,
+						  menuTypeItemLabelPtr,
+                          &usbHostDevice2Setup);
 #endif
 //==================================================================================================================================================================
 // File transfer

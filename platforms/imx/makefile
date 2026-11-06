@@ -59,6 +59,9 @@ NOW := $(shell date +"%Y%m%d_%H%M")
 
 INCLUDES=-I./drivers -I./component/serial_manager -I./utilities -I./component/lists -I./component/osa -I./device -I./CMSIS -I./drivers -I./component/serial_manager -I./utilities -I./component/lists -I./CMSIS -I./device -I./board -I./component/osa -I./config -I./source -I./3rdparty -I./3rdparty/Audio -I./3rdparty/MIDI -I./3rdparty/FT812 -I./source/Drivers -I./usb -I./usb/device/class/cdc -I./usb/include -I./usb/device/class -I./usb/device/source -I./usb/device/include -I./usb/device/source/ehci -I./usb/phy -I./usb/device/class/audio -I./usb/device/class/msc -I./sdmmc/host -I./sdmmc/osa -I./sdmmc/inc -I./fatfs/source -I./fatfs/source/fsl_sd_disk -I./fatfs/source/fsl_ram_disk -I./sdmmc/sd -I${POLYSYNTH_DIR}/include -I${POLYUTIL_DIR}/include -I${POLYUTIL_DIR}/3rdparty -I${TRACKER_DIR}/include
 
+# TinyUSB host stack (USB MIDI host mode)
+INCLUDES+=-I./3rdparty/tinyusb -I./3rdparty/tinyusb/src
+
 DEFINES=-DCPU_MIMXRT1051CVL5B -DI2C_RETRY_TIMES=20000 -DCPU_MIMXRT1051CVL5B_cm7 -DSDK_OS_BAREMETAL -D__MCUXPRESSO -D__USE_CMSIS -DNDEBUG -D__NEWLIB__ -DDEBUG_CONSOLE_RX_ENABLE=0 -DSDK_DEBUGCONSOLE=1 -DSERIAL_PORT_TYPE_VIRTUAL=1 -DDEBUG_CONSOLE_TRANSFER_NON_BLOCKING -DXIP_BOOT_HEADER_ENABLE=1 -DXIP_EXTERNAL_FLASH=1 -DXIP_BOOT_HEADER_DCD_ENABLE=0 -DSD_ENABLED -DBUILD_ID=\"$(BUILD_ID_STR)\"
 DEFINES += $(CUSTOM_DEFINES)
 

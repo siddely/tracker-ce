@@ -15,11 +15,13 @@
 
 #include "Tracker.h"
 #include "core/interface.h"
+#include "core/interfacePopups.h"
 
 // device startup actions after Config read
 void initConfigValuesAfterReadConfig()
 {
     usbAudioChange();
+    usbHostChange();
     setDisplayBrightness();
 }
 
@@ -27,6 +29,7 @@ void initConfigValuesAfterReadConfig()
 void restartConfigAllActions()
 {
     usbAudioChange();
+    usbHostChange();
 
     setRadioRegion();
     setDisplayBrightness();
@@ -161,6 +164,12 @@ void resetConfigShowPopup()
 
 void usbStorageEnter()
 {
+    if (mtInterface.getPlatform()->getUsb()->isHostMode())
+    {
+        mtPopups.showInfoPopup("USB is in Host mode.", "Set Port mode to Device first.");
+        return;
+    }
+
     startFileTransferMode();
 }
 
@@ -191,6 +200,135 @@ void usbAudioChange()
     engine.refreshOutputSourceOutsideTheRecorder();
 #endif
     usb->reset();
+}
+
+void usbHostChange()
+{
+    Usb* usb = mtInterface.getPlatform()->getUsb();
+
+    if (!usb->hasHostMode())
+    {
+        mtConfig.common.usbHostMode = 0;
+        return;
+    }
+
+    usb->setHostMode(mtConfig.common.usbHostMode == 1);
+}
+
+// Labels for Config > USB > Status and Device 1/2
+const char* usbHostDeviceLabel[kUsbHostDeviceLabels] = { "-", "-" };
+const char* usbHostStatusLabel = "-";
+const char* usbHostPortLabel = "-";
+static char usbHostPortText[48];
+
+static char usbHostDeviceNames[kUsbHostDeviceLabels][32];
+static char usbHostStatusText[48];
+static char usbHostPopupName[32]; // the popup keeps a pointer to its text, so it must outlive us
+
+// Shows when the port changes mode, so it's clear whether host mode really started
+static void usbHostStateUpdate(Usb* usb)
+{
+    static uint8_t lastState = 0;
+    static elapsedMillis sinceStatus = 1000;
+
+    uint8_t state = usb->getHostState();
+    if (state != lastState)
+    {
+        lastState = state;
+        // Port mode popups are detail: only with Config > MIDI > MIDI monitor on.
+        // Device connect/disconnect popups always show (usbHostDevicesUpdate).
+        if (mtConfig.midi.monitor != 0)
+        switch (state)
+        {
+            case 1: mtPopups.show(0, "USB host mode on", "Waiting for MIDI devices"); break;
+            case 2: mtPopups.show(0, "USB host mode failed", "Port stays in device mode"); break;
+            default: mtPopups.show(0, "USB device mode", "Connect to a computer"); break;
+        }
+    }
+
+    // Status line for Config > USB, refreshed a couple of times per second
+    if (sinceStatus >= 500)
+    {
+        sinceStatus = 0;
+        const char* status = usb->getHostStatus();
+        strncpy(usbHostStatusText, status != nullptr ? status : "-", sizeof(usbHostStatusText) - 1);
+        usbHostStatusLabel = usbHostStatusText;
+
+        const char* port = usb->getHostPortDebug();
+        strncpy(usbHostPortText, port != nullptr ? port : "-", sizeof(usbHostPortText) - 1);
+        usbHostPortLabel = usbHostPortText;
+    }
+}
+
+// Called continuously from the interface loop. When a USB MIDI device is connected or removed
+// in host mode, briefly shows its name and refreshes the device list in Config > USB.
+void usbHostDevicesUpdate()
+{
+    static uint16_t lastVersion = 0;
+    static char shownNames[kUsbHostDeviceLabels][32] = {};
+
+    Usb* usb = mtInterface.getPlatform()->getUsb();
+    if (!usb->hasHostMode())
+    {
+        return;
+    }
+
+    usbHostStateUpdate(usb);
+
+    uint16_t version = usb->getHostDeviceListVersion();
+    if (version == lastVersion)
+    {
+        return;
+    }
+    lastVersion = version;
+
+    const bool hostMode = usb->isHostMode();
+    char current[kUsbHostDeviceLabels][32] = {};
+
+    for (uint8_t i = 0; i < kUsbHostDeviceLabels; i++)
+    {
+        const char* name = hostMode ? usb->getHostDeviceName(i) : nullptr;
+        if (name != nullptr)
+        {
+            strncpy(current[i], name, sizeof(current[i]) - 1);
+        }
+    }
+
+    if (hostMode)
+    {
+        auto contains = [](char list[][32], const char* name)
+        {
+            for (uint8_t j = 0; j < kUsbHostDeviceLabels; j++)
+            {
+                if (strcmp(list[j], name) == 0)
+                    return true;
+            }
+            return false;
+        };
+
+        for (uint8_t i = 0; i < kUsbHostDeviceLabels; i++)
+        {
+            if (current[i][0] != 0 && !contains(shownNames, current[i]))
+            {
+                strcpy(usbHostPopupName, current[i]);
+                mtPopups.show(0, "USB MIDI connected", usbHostPopupName);
+            }
+            else if (shownNames[i][0] != 0 && !contains(current, shownNames[i]))
+            {
+                strcpy(usbHostPopupName, shownNames[i]);
+                mtPopups.show(0, "USB MIDI disconnected", usbHostPopupName);
+            }
+        }
+    }
+
+    for (uint8_t i = 0; i < kUsbHostDeviceLabels; i++)
+    {
+        strcpy(shownNames[i], current[i]);
+        strcpy(usbHostDeviceNames[i], current[i]);
+        usbHostDeviceLabel[i] = current[i][0] != 0 ? usbHostDeviceNames[i]
+                                : hostMode         ? "Not connected"
+                                                   : "Host mode off";
+    }
 }
 
 void checkFuncitonKey(int key)

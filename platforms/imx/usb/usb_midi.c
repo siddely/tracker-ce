@@ -16,6 +16,7 @@
 #include "composite.h"
 
 #include "usb_midi.h"
+#include "usb_host_mode.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -51,6 +52,120 @@ uint32_t lastClkCount = 0;
 #endif
 
 bool midiSendPacket();
+
+/*!
+ * @brief Parse USB-MIDI event packets into the shared receive queue.
+ *
+ * Used by the device stack (packets from a computer) and by host mode (packets from a
+ * controller plugged into the Tracker). Safe to call from interrupt or main-loop context.
+ */
+void midiUsbParseRx(const uint8_t* buf, uint32_t len)
+{
+    uint32_t primask = DisableGlobalIRQ();
+
+    uint32_t frame, channel, type1, type2, command;
+    uint32_t index = 0;
+
+    while (index + 4 <= len)
+    {
+        bool skipMessage = false;
+        frame = ((const uint32_t*)buf)[index / 4];
+
+        type1 = frame & 15;
+        type2 = (frame >> 12) & 15;
+        command = (frame >> 8) & 0xFF;
+        channel = (command & 15) + 1;
+        // cable = (n >> 4) & 15; // not used for now
+
+        if (type1 >= 0x08 && type1 <= 0x0E)
+        {
+            if (type1 == 0x08 && type2 == 0x08)
+            {
+                midiMessageQueue[queueTop].type = kNoteOff;
+            }
+            else if (type1 == 0x09 && type2 == 0x09)
+            {
+                if ((frame >> 24) > 0)
+                {
+                    midiMessageQueue[queueTop].type = kNoteOn;
+                }
+                else
+                {
+                    midiMessageQueue[queueTop].type = kNoteOff;
+                }
+            }
+            else if (type1 == 0x0A && type2 == 0x0A)
+            {
+                midiMessageQueue[queueTop].type = kAfterTouch;
+            }
+            else if (type1 == 0x0B && type2 == 0x0B)
+            {
+                midiMessageQueue[queueTop].type = kControlChange;
+            }
+            else if (type1 == 0x0C && type2 == 0x0C)
+            {
+                midiMessageQueue[queueTop].type = kProgramChange;
+            }
+            else if (type1 == 0x0D && type2 == 0x0D)
+            {
+                midiMessageQueue[queueTop].type = kChannelPressure;
+            }
+            else if (type1 == 0x0E && type2 == 0x0E)
+            {
+                midiMessageQueue[queueTop].type = kPitchBend;
+            }
+            else
+            {
+                skipMessage = true;
+            }
+        }
+        else
+        {
+            if (type1 == 0x02 || type1 == 0x03 ||
+                (type1 == 0x05 && command >= 0xF1 && command != 0xF7) ||
+                (type1 == 0x0F && command >= 0xF8))
+            {
+                midiMessageQueue[queueTop].type = command;
+            }
+            else
+            {
+                skipMessage = true;
+            }
+        }
+
+        midiMessageQueue[queueTop].channel = channel;
+        midiMessageQueue[queueTop].data1 = (frame >> 16);
+        midiMessageQueue[queueTop].data2 = (frame >> 24);
+
+        if (!skipMessage)
+        {
+            if (queueTop >= QUEUE_SIZE - 1)
+            {
+                queueTop = 0;
+            }
+            else
+            {
+                queueTop++;
+            }
+
+            if (queueTop == queueBottom)
+            {
+                if (queueBottom >= QUEUE_SIZE - 1)
+                {
+                    queueBottom = 0;
+                }
+                else
+                {
+                    queueBottom++;
+                }
+            }
+        }
+
+        index += 4;
+    }
+
+    EnableGlobalIRQ(primask);
+}
 
 usb_status_t USB_DeviceMidiCallback(class_handle_t handle, uint32_t event, void* param)
 {
@@ -102,106 +217,7 @@ usb_status_t USB_DeviceMidiCallback(class_handle_t handle, uint32_t event, void*
 
             s_recvSize = epCbParam->length;
 
-            uint32_t frame, channel, type1, type2, command;
-            uint32_t index = 0;
-
-            while (index + 4 <= s_recvSize)
-            {
-                bool skipMessage = false;
-                frame = ((uint32_t*)s_currRecvBuf)[index / 4];
-
-                type1 = frame & 15;
-                type2 = (frame >> 12) & 15;
-                command = (frame >> 8) & 0xFF;
-                channel = (command & 15) + 1;
-                // cable = (n >> 4) & 15; // not used for now
-
-                if (type1 >= 0x08 && type1 <= 0x0E)
-                {
-                    if (type1 == 0x08 && type2 == 0x08)
-                    {
-                        midiMessageQueue[queueTop].type = kNoteOff;
-                    }
-                    else if (type1 == 0x09 && type2 == 0x09)
-                    {
-                        if ((frame >> 24) > 0)
-                        {
-                            midiMessageQueue[queueTop].type = kNoteOn;
-                        }
-                        else
-                        {
-                            midiMessageQueue[queueTop].type = kNoteOff;
-                        }
-                    }
-                    else if (type1 == 0x0A && type2 == 0x0A)
-                    {
-                        midiMessageQueue[queueTop].type = kAfterTouch;
-                    }
-                    else if (type1 == 0x0B && type2 == 0x0B)
-                    {
-                        midiMessageQueue[queueTop].type = kControlChange;
-                    }
-                    else if (type1 == 0x0C && type2 == 0x0C)
-                    {
-                        midiMessageQueue[queueTop].type = kProgramChange;
-                    }
-                    else if (type1 == 0x0D && type2 == 0x0D)
-                    {
-                        midiMessageQueue[queueTop].type = kChannelPressure;
-                    }
-                    else if (type1 == 0x0E && type2 == 0x0E)
-                    {
-                        midiMessageQueue[queueTop].type = kPitchBend;
-                    }
-                    else
-                    {
-                        skipMessage = true;
-                    }
-                }
-                else
-                {
-                    if (type1 == 0x02 || type1 == 0x03 ||
-                        (type1 == 0x05 && command >= 0xF1 && command != 0xF7) ||
-                        (type1 == 0x0F && command >= 0xF8))
-                    {
-                        midiMessageQueue[queueTop].type = command;
-                    }
-                    else
-                    {
-                        skipMessage = true;
-                    }
-                }
-
-                midiMessageQueue[queueTop].channel = channel;
-                midiMessageQueue[queueTop].data1 = (frame >> 16);
-                midiMessageQueue[queueTop].data2 = (frame >> 24);
-
-                if (!skipMessage)
-                {
-                    if (queueTop >= QUEUE_SIZE - 1)
-                    {
-                        queueTop = 0;
-                    }
-                    else
-                    {
-                        queueTop++;
-                    }
-
-                    if (queueTop == queueBottom)
-                    {
-                        if (queueBottom >= QUEUE_SIZE - 1)
-                        {
-                            queueBottom = 0;
-                        }
-                        else
-                        {
-                            queueBottom++;
-                        }
-                    }
-                }
-
-                index += 4;
-            }
+            midiUsbParseRx(s_currRecvBuf, s_recvSize);
 
             s_recvSize = 0;
 
@@ -316,8 +332,29 @@ bool midiUsbReceive(MidiUsbMessage* midiMessage)
     return true;
 }
 
+void midiUsbResetTx(void)
+{
+    uint32_t primask = DisableGlobalIRQ();
+
+    currentInputBuf = 0;
+    currentSendBuf = 0;
+    for (int i = 0; i < SEND_BUFF_COUNT; i++)
+    {
+        sendBufSize[i] = 0;
+    }
+
+    EnableGlobalIRQ(primask);
+}
+
 void midiUsbTx(uint32_t packet)
 {
+    if (USB_HostModeIsActive())
+    {
+        /* A controller or synth is plugged into the Tracker: send to it instead. */
+        USB_HostMidiTx(packet);
+        return;
+    }
+
     uint32_t primask = DisableGlobalIRQ();
 
     if (sendBufSize[currentInputBuf] < SEND_BUFF_SIZE)
@@ -354,6 +391,11 @@ void midiUsbTx(uint32_t packet)
 
 bool midiSendPacket()
 {
+    if (USB_HostModeIsActive() || g_deviceComposite->midi.midiHandle == NULL)
+    {
+        return false;
+    }
+
     if (!((usb_device_midi_struct_t*)g_deviceComposite->midi.midiHandle)->bulkIn.isBusy)
     {
         if (sendBufSize[currentSendBuf] > 0)

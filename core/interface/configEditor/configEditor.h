@@ -229,6 +229,13 @@ class cConfigEditor : public ModuleBase
     void showCreditsControls();
     void hideCreditsControls();
 
+    //---------- USB log (Config > USB > Log) ------------
+    void openUsbLog();
+    void closeUsbLog();
+    void showUsbLogControls();
+    void hideUsbLogControls();
+    void refreshUsbLogText(const char* text, const char* title);
+
     ///-------------------------------
 
     void saveConfigToEeprom();

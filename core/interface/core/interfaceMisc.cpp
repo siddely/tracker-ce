@@ -1,4 +1,6 @@
 #include "core/interface.h"
+#include "configEditor/configMenuActions.h"
+#include "mtMidiMonitor.h"
 
 #include "projectEditor/projectEditor.h"
 
@@ -320,6 +322,10 @@ void Interface::hideDisplayShutdown()
 // takie różne globalne rzeczy
 void Interface::commonThingsUpdate()
 {
+    usbHostDevicesUpdate();
+    usbLogViewUpdate();
+    midiMonitorUpdate();
+
     if (songTimer.enabled)
     {
         songTimer.refresh();

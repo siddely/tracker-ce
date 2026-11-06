@@ -44,6 +44,27 @@ class UsbImpl final : public Usb
      * This method returns true if device is connected to a host and false when not
      */
     virtual bool isAttached() override;
+    /**
+     * Switches the USB-C port between device mode (to a computer) and host mode
+     * (USB MIDI controllers plugged into the Tracker). Applied on the next update().
+     */
+    virtual bool hasHostMode() override { return true; }
+    virtual void setHostMode(bool enable) override;
+    virtual bool isHostMode() override;
+    /**
+     * Number of USB MIDI devices mounted while in host mode
+     */
+    virtual uint8_t getHostDeviceCount() override;
+    virtual const char* getHostDeviceName(uint8_t n) override;
+    virtual uint16_t getHostDeviceListVersion() override;
+    virtual uint8_t getHostState() override;
+    virtual const char* getHostStatus() override;
+    virtual const char* getHostPortDebug() override;
+    virtual uint32_t getLogFirst() override;
+    virtual uint32_t getLogNext() override;
+    virtual bool getLogLine(uint32_t n, char* out, uint32_t size) override;
+    virtual void clearLog() override;
+    virtual bool saveLog(const char* path) override;
 };
 
 #endif /* USBIMPL_H_ */
