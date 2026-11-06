@@ -11,11 +11,23 @@ const uint8_t padBoard[48] = {
     12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11,
 };
 
+uint8_t cMtPadBoard::shifted(uint8_t note) const
+{
+    return clamp<int>(note + 12 * octaveShift, MIN_NOTE, MAX_NOTE);
+}
+
+int cMtPadBoard::getGridNote(uint8_t noteOrderIdx, int8_t shift) const
+{
+    if (noteOrderIdx > 47)
+        noteOrderIdx = 47;
+    return padNotes[noteOrderIdx] + 12 * shift;
+}
+
 uint8_t cMtPadBoard::convertPadToNote(uint8_t pad)
 {
-    if (pad > 48)
-        pad = 48;
-    return padNotes[padBoard[pad]];
+    if (pad > 47)
+        pad = 47;
+    return shifted(padNotes[padBoard[pad]]);
 }
 
 void cMtPadBoard::configureInstrumentPlayer(uint8_t maxVoices)
@@ -174,6 +186,7 @@ void cMtPadBoard::setPadNotes(uint8_t scale, uint8_t noteOffset, uint8_t rootNot
         lastNoteOffset = noteOffset;
         lastScale = scale;
         lastRootNote = rootNote;
+        octaveShift = 0; // grid rebuilt from the settings: start from the root note again
     }
 }
 
@@ -183,7 +196,7 @@ uint8_t cMtPadBoard::countPadsWithNote(int8_t note, uint8_t* pads)
 
     for (uint8_t i = 0; i < 48; i++)
     {
-        if (padNotes[padBoard[i]] == note)
+        if (shifted(padNotes[padBoard[i]]) == note)
         {
             pads[i] = 1;
             count++;
@@ -206,5 +219,5 @@ uint8_t cMtPadBoard::getNoteFromPad(int8_t pad, [[maybe_unused]] bool isBeatSlic
 #endif
     if (pad == INTERFACE_BUTTON_PREVIEW)
         return 60;
-    return padNotes[padBoard[pad]];
+    return shifted(padNotes[padBoard[pad]]);
 }

@@ -65,10 +65,15 @@ class InterfacePopups
 
     enum noteKeyboardFunctionKeys
     {
+        // Shift layer of the note keyboard, and the Note popup's buttons: related pairs together
         kOctDown = 0,
-        kNoteDown = 1,
-        kNoteUp = 6,
-        kOctUp = 7,
+        kOctUp = 1,
+        kNoteDown = 2,
+        kNoteUp = 3,
+        kKeyDown = 4,
+        kKeyUp = 5,
+        kScaleDown = 6,
+        kScaleUp = 7,
 
     };
 
@@ -78,6 +83,9 @@ class InterfacePopups
     int getNoteKeyboardBaseNote();
     int getNoteKeyboardFirstPadIdx();
     void modifyMiniKeyboardFirstPadIdx(int8_t& firstPad, int delta);
+    void refreshNotesPopupTitle();
+    // Steps the project's key (root note) and/or scale, keeping the current octave view
+    void changeKeyAndScale(int keyDelta, int scaleDelta);
 
     enum PopupDir
     {
@@ -183,6 +191,9 @@ class InterfacePopups
     enumStepPopups stepPopupState = stepPopupNone;
     bool noteKeyboardPopupActive = false;
     int miniKeyboardFirstPadIdx = 12 * 3;
+#ifdef TRACKER_MINI
+    int scrollGridForWindow(int noteIdx, int delta);
+#endif
     bool miniKeyboardEditButtonsActive = false;
 
     //-------------------------------------------------------------

@@ -3,6 +3,10 @@
 
 #include "core/songTimer.h"
 #include "mtPadBoard.h"
+#include "scales.h"
+#include "configEditor/configMenuActions.h"
+
+static constexpr uint8_t kScaleCount = MAX_SCALE + 1;
 #include "mtPadsBacklight.h"
 
 #include "mtSequencer.h"
@@ -29,6 +33,23 @@ static void functEncoderPopup(int16_t value);
 static void functPadsPopup(uint8_t pad, uint8_t state, int16_t velo);
 
 static void functDescriptionButton();
+#ifdef TRACKER_MINI
+// The Note popup's buttons under the screen mirror the note keyboard's Shift layer.
+// On the Mini, up/right move the note window higher (see changeStepPopupValue).
+static void functNotePopupOctDown() { mtPopups.changeStepPopupValue(0, InterfacePopups::kDown); }
+static void functNotePopupOctUp() { mtPopups.changeStepPopupValue(0, InterfacePopups::kUp); }
+static void functNotePopupNoteDown() { mtPopups.changeStepPopupValue(0, InterfacePopups::kLeft); }
+static void functNotePopupNoteUp() { mtPopups.changeStepPopupValue(0, InterfacePopups::kRight); }
+static void functNotePopupKeyDown() { mtPopups.changeKeyAndScale(-1, 0); }
+static void functNotePopupKeyUp() { mtPopups.changeKeyAndScale(1, 0); }
+static void functNotePopupScaleDown() { mtPopups.changeKeyAndScale(0, -1); }
+static void functNotePopupScaleUp() { mtPopups.changeKeyAndScale(0, 1); }
+
+static char* notePopupButtonLabels[8] = {
+    (char*)"Oct-", (char*)"Oct+", (char*)"Note-", (char*)"Note+",
+    (char*)"Key-", (char*)"Key+", (char*)"Scale-", (char*)"Scale+",
+};
+#endif
 
 static void functNoteActionButton(uint8_t button, uint8_t state);
 
@@ -238,7 +259,7 @@ void InterfacePopups::showNotesPopup()
     display.setControlStyle(bgLabel, controlStyleShow | controlStyleBackground);
     display.refreshControl(bgLabel);
 
-    display.setControlText(textLabel1, " Notes");
+    refreshNotesPopupTitle();
     display.setControlPosition(textLabel1, 2, 0);
     display.setControlColors(textLabel1, display.getTheme().stepPopupTitleLabelColor);
     display.setControlSize(textLabel1, 800, 26);
@@ -255,6 +276,14 @@ void InterfacePopups::showNotesPopup()
     display.setControlValue(keyboardControl, selectedActualItem);
     display.setControlShow(keyboardControl);
     display.refreshControl(keyboardControl);
+
+#ifdef TRACKER_MINI
+    // Key and scale can be changed right here, from the buttons under the screen
+    notesKeyboardData.labels = notePopupButtonLabels;
+    notesKeyboardData.editButtonsVisible = true;
+    display.setControlShow(notesKeyboard);
+    display.refreshControl(notesKeyboard);
+#endif
 
     display.synchronizeRefresh();
 }
@@ -280,6 +309,10 @@ void InterfacePopups::showNotesKeyboardPopup(bool showEditButtons)
     {
         noteKeyboardNames[noteKeyboardFunctionKeys::kOctDown] = (char*)"Oct-";
         noteKeyboardNames[noteKeyboardFunctionKeys::kNoteDown] = (char*)"Note-";
+        noteKeyboardNames[noteKeyboardFunctionKeys::kKeyDown] = (char*)"Key-";
+        noteKeyboardNames[noteKeyboardFunctionKeys::kKeyUp] = (char*)"Key+";
+        noteKeyboardNames[noteKeyboardFunctionKeys::kScaleDown] = (char*)"Scale-";
+        noteKeyboardNames[noteKeyboardFunctionKeys::kScaleUp] = (char*)"Scale+";
 
         noteKeyboardNames[noteKeyboardFunctionKeys::kNoteUp] = (char*)"Note+";
         noteKeyboardNames[noteKeyboardFunctionKeys::kOctUp] = (char*)"Oct+";
@@ -515,6 +548,20 @@ void InterfacePopups::processNotePadInput(uint8_t button, uint8_t state)
             toggleNoteKeyboardPopup(noteKeyboardOption::kShowEditButtons);
             return;
         }
+        else if (button == noteKeyboardFunctionKeys::kKeyDown ||
+                 button == noteKeyboardFunctionKeys::kKeyUp)
+        {
+            changeKeyAndScale(button == noteKeyboardFunctionKeys::kKeyUp ? 1 : -1, 0);
+            toggleNoteKeyboardPopup(noteKeyboardOption::kShowEditButtons);
+            return;
+        }
+        else if (button == noteKeyboardFunctionKeys::kScaleDown ||
+                 button == noteKeyboardFunctionKeys::kScaleUp)
+        {
+            changeKeyAndScale(0, button == noteKeyboardFunctionKeys::kScaleUp ? 1 : -1);
+            toggleNoteKeyboardPopup(noteKeyboardOption::kShowEditButtons);
+            return;
+        }
     }
 
     int firstNoteIdx = padToNoteIdx(miniKeyboardFirstPadIdx);
@@ -547,19 +594,192 @@ void InterfacePopups::modifyMiniKeyboardFirstPadIdx(int8_t& idx, int delta)
         delta = -12;
     }
     int noteIdx = idxToNoteOrder[idx];
+    int target = noteIdx + delta;
 
-    noteIdx = clamp<int>(noteIdx + delta, 0, interfacePadsCount - 8);
-
-    for (const auto& pair : idxToNoteOrder)
+#ifdef TRACKER_MINI
+    // Moving the 8-note window past the edge of the 48-note grid scrolls the grid by an
+    // octave instead of stopping, so the whole note range is reachable from the popup.
+    if (target > interfacePadsCount - 8 || target < 0)
     {
-        if (pair.second == noteIdx)
+        int scrolled = scrollGridForWindow(noteIdx, delta);
+        if (scrolled >= 0)
         {
-            miniKeyboardFirstPadIdx = pair.first;
-            idx = pair.first;
+            target = scrolled;
         }
     }
+#endif
 
-    assert(false); // nothing found in idxToNoteOrder
+    int firstStart = 0;
+    int lastStart = interfacePadsCount - 8;
+#ifdef TRACKER_MINI
+    // Near the ends of the note range, keep the whole window on valid notes
+    const int8_t shift = mtPadBoard.getOctaveShift();
+    while (lastStart > 0 && mtPadBoard.getGridNote(lastStart + 7, shift) > MAX_NOTE)
+        lastStart--;
+    while (firstStart < lastStart && mtPadBoard.getGridNote(firstStart, shift) < MIN_NOTE)
+        firstStart++;
+#endif
+    noteIdx = clamp<int>(target, firstStart, lastStart);
+
+    int padIdx = noteToPadIdx(noteIdx);
+    miniKeyboardFirstPadIdx = padIdx;
+    idx = padIdx;
+}
+
+#ifdef TRACKER_MINI
+// Shifts the pad grid one octave up (delta > 0) or down (delta < 0) and returns the note
+// order index where the 8-note window should now start, or -1 if the grid can't move further.
+//
+// The new window position is found by note value rather than by index, because with scale
+// layouts one octave is not 12 grid positions: a row step lands an octave away, a single
+// step lands on the next note in that direction.
+int InterfacePopups::scrollGridForWindow(int noteIdx, int delta)
+{
+    constexpr int kLastWindowStart = interfacePadsCount - 8;
+    const int8_t shift = mtPadBoard.getOctaveShift();
+    const int8_t newShift = shift + (delta > 0 ? 1 : -1);
+    const int oldNote = mtPadBoard.getGridNote(noteIdx, shift);
+
+    int wanted;
+    if (delta > 1)
+        wanted = oldNote + 12;
+    else if (delta == 1)
+        wanted = oldNote + 1;
+    else if (delta < -1)
+        wanted = oldNote - 12;
+    else
+        wanted = oldNote - 1;
+
+    int found = -1;
+    if (delta > 0)
+    {
+        // first window start at or above the wanted note
+        for (int k = 0; k <= kLastWindowStart; k++)
+        {
+            if (mtPadBoard.getGridNote(k, newShift) >= wanted)
+            {
+                found = k;
+                break;
+            }
+        }
+        if (found < 0 || mtPadBoard.getGridNote(found + 7, newShift) > MAX_NOTE)
+            return -1;
+    }
+    else
+    {
+        // last window start at or below the wanted note
+        for (int k = kLastWindowStart; k >= 0; k--)
+        {
+            if (mtPadBoard.getGridNote(k, newShift) <= wanted)
+            {
+                found = k;
+                break;
+            }
+        }
+        if (found < 0 || mtPadBoard.getGridNote(found, newShift) < MIN_NOTE)
+            return -1;
+    }
+
+    mtPadBoard.setOctaveShift(newShift);
+    reloadPadsNotes();
+    refreshNotesPopupTitle();
+    return found;
+}
+#endif
+
+// Key name without the octave, e.g. "C#" from "C#2"
+static const char* keyName(uint8_t rootSetting)
+{
+    static char name[4];
+    const char* full = allNotes[12 + rootSetting]; // same list the Root note menu uses
+    uint8_t i = 0;
+    while (full[i] != 0 && (full[i] < '0' || full[i] > '9') && i < sizeof(name) - 1)
+    {
+        name[i] = full[i];
+        i++;
+    }
+    name[i] = 0;
+    return name;
+}
+
+void InterfacePopups::changeKeyAndScale(int keyDelta, int scaleDelta)
+{
+    constexpr int kRootSettings = 37; // Root note menu range, see setupPadsRootNote
+    constexpr int kScales = MAX_SCALE + 1;
+
+    int root = mtProject.values.padBoardRootNote + keyDelta;
+    int scale = (mtProject.values.padBoardScale + scaleDelta + kScales) % kScales;
+    int8_t shift = mtPadBoard.getOctaveShift();
+
+    // The root setting also places the grid; wrap it by an octave at its ends and move the
+    // view the other way, so the key cycles freely and the notes on screen stay put.
+    if (root < 0)
+    {
+        root += 12;
+        shift--;
+    }
+    else if (root >= kRootSettings)
+    {
+        root -= 12;
+        shift++;
+    }
+
+    mtProject.values.padBoardRootNote = root;
+    mtProject.values.padBoardScale = scale;
+    setPadBoardValues(); // rebuilds the grid (resets the view) and marks the project changed
+
+    // keep the view octave, within the valid note range
+    while (shift > 0 && mtPadBoard.getGridNote(0, shift) > MAX_NOTE - 12)
+        shift--;
+    while (shift < 0 && mtPadBoard.getGridNote(interfacePadsCount - 1, shift) < MIN_NOTE + 12)
+        shift++;
+    mtPadBoard.setOctaveShift(shift);
+
+    reloadPadsNotes();
+
+    int8_t idx = miniKeyboardFirstPadIdx;
+    modifyMiniKeyboardFirstPadIdx(idx, 0); // re-clamp the window to valid notes
+
+    if (stepPopupState == stepPopupNote)
+    {
+        modifyMiniKeyboardFirstPadIdx(selectedActualItem, 0);
+        selectPadOnPopup(selectedActualItem);
+        mtProject.values.lastUsedNote = mtPadBoard.convertPadToNote(selectedActualItem);
+        refreshNotesPopupTitle();
+    }
+
+    if (stepPopupState != stepPopupNote) // the Note popup's title already shows them
+    {
+        static char keyLine[16];
+        static char scaleLine[24];
+        snprintf(keyLine, sizeof(keyLine), "Key: %s", keyName(root));
+        snprintf(scaleLine, sizeof(scaleLine), "Scale: %s", scaleNames[scale]);
+        show(0, keyLine, scaleLine);
+    }
+}
+
+void InterfacePopups::refreshNotesPopupTitle()
+{
+#ifdef TRACKER_MINI
+    // Show which part of the note range the grid covers, since it can now be scrolled
+    static char title[64];
+    snprintf(title,
+             sizeof(title),
+             " Notes   %s - %s      %s %s",
+             mtNotes[mtPadBoard.getNoteFromPad(noteToPadIdx(0))],
+             mtNotes[mtPadBoard.getNoteFromPad(noteToPadIdx(interfacePadsCount - 1))],
+             keyName(mtProject.values.padBoardRootNote),
+             scaleNames[mtProject.values.padBoardScale < kScaleCount
+                          ? mtProject.values.padBoardScale
+                          : 0]);
+    display.setControlText(textLabel1, title);
+#else
+    display.setControlText(textLabel1, " Notes");
+#endif
+    if (stepPopupState == stepPopupNote)
+    {
+        display.refreshControl(textLabel1);
+    }
 }
 
 void InterfacePopups::hideStepPopups()
@@ -574,6 +794,12 @@ void InterfacePopups::hideStepPopups()
         display.setControlHide(popupListControl);
 
         display.setControlHide(keyboardControl);
+        display.setControlHide(notesKeyboard);
+        notesKeyboardData.editButtonsVisible = false;
+#ifdef TRACKER_MINI
+        // back to the state setPopupFunct() left them in (keyboard popup rebinds them below)
+        mtInterface.ip->clearButtonsRange(interfaceButton0, interfaceButton7);
+#endif
 
         display.setControlHide(bgLabel);
         display.setControlHide(textLabel1);
@@ -612,6 +838,16 @@ void InterfacePopups::setPopupFunct()
             mtInterface.ip->clearButton(interfaceButtonInstr);
             mtInterface.ip->clearButton(interfaceButtonFx1);
             mtInterface.ip->clearButton(interfaceButtonFx2);
+#ifdef TRACKER_MINI
+            mtInterface.ip->setButtonObj(interfaceButton0, buttonPress, functNotePopupOctDown);
+            mtInterface.ip->setButtonObj(interfaceButton1, buttonPress, functNotePopupOctUp);
+            mtInterface.ip->setButtonObj(interfaceButton2, buttonPress, functNotePopupNoteDown);
+            mtInterface.ip->setButtonObj(interfaceButton3, buttonPress, functNotePopupNoteUp);
+            mtInterface.ip->setButtonObj(interfaceButton4, buttonPress, functNotePopupKeyDown);
+            mtInterface.ip->setButtonObj(interfaceButton5, buttonPress, functNotePopupKeyUp);
+            mtInterface.ip->setButtonObj(interfaceButton6, buttonPress, functNotePopupScaleDown);
+            mtInterface.ip->setButtonObj(interfaceButton7, buttonPress, functNotePopupScaleUp);
+#endif
             break;
         case stepPopupInstr:
         case stepPopupOnlyMidiInstr:

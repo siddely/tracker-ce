@@ -284,7 +284,13 @@ const char scaleDesc[] = {
 };
 #endif
 
+#ifdef TRACKER_MINI
+const char rootNoteDesc[] = { "Sets the key of the Notes scale and the bottom-left note of the "
+                              "Note popup. Scroll past the popup's edge to move by octaves. Key "
+                              "and Scale can also be changed from the Note popup's buttons." };
+#else
 const char rootNoteDesc[] = { "Defines the note at the bottom-left of the Note popup." };
+#endif
 
 const char padLayDesc[] = {
     "For the first (leftmost) column in the Note popup, this value sets how many semitones higher "

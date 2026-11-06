@@ -132,7 +132,7 @@ void cNotesKeyboard::update()
 
     for (uint8_t i = 0; i < 8; i++)
     {
-        if (data->editButtonsVisible && (i <= 1 || i >= 6))
+        if (data->editButtonsVisible) // all 8 keys are functions while Shift is held
         {
             API_COLOR(colors[2]);
         }

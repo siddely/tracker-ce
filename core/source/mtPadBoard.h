@@ -35,10 +35,22 @@ class cMtPadBoard
     uint8_t getNoteFromPad(int8_t pad, bool isBeatSlice = false);
     int8_t getEmptyVoice();
 
+    // View octave shift: transposes the whole pad grid by whole octaves without touching the
+    // project's root note or scale. Lets the Tracker Mini note popup scroll through the full
+    // note range. Not saved; reset whenever the grid is rebuilt from the project settings.
+    int8_t getOctaveShift() const { return octaveShift; }
+    void setOctaveShift(int8_t shift) { octaveShift = shift; }
+    // Note at a grid position (note order 0..47, lowest first), with an explicit octave shift.
+    // Not clamped, so callers can test whether a shift would leave the valid note range.
+    int getGridNote(uint8_t noteOrderIdx, int8_t shift) const;
+
   private:
     uint8_t lastScale = 255;
     uint8_t lastNoteOffset = 255;
     uint8_t lastRootNote = 255;
+    int8_t octaveShift = 0;
+
+    uint8_t shifted(uint8_t note) const;
 
     uint8_t voicesCount;
     uint8_t padNotes[48];
